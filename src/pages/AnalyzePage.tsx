@@ -68,12 +68,17 @@ function makePyVarName(prefix = "v") {
   // - cannot start with a number
 
   const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
-  const rand = crypto
-    .getRandomValues(new Uint32Array(4))
-    .reduce((s, n) => s + n.toString(36), "");
+
+  // Generate cryptographically secure random characters
+  const bytes = crypto.getRandomValues(new Uint8Array(12));
+  let rand = "";
+
+  for (const b of bytes) {
+    rand += chars[b % chars.length];
+  }
 
   // ensure it starts with a letter or underscore
-  return `${prefix}_${rand.replace(/[^a-z0-9]/gi, "").slice(0, 12)}`;
+  return `${prefix}_${rand}`;
 }
 
 function decodeArgsFromQuery(
