@@ -690,6 +690,7 @@ _STATE_REG[state_id] = state
       if (!alive) return;
 
       if (!init.ok) {
+        console.error(init.error + "\n\n" + (init.stack ?? ""));
         nav("/", { replace: true });
         return;
       }
