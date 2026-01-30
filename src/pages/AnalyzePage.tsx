@@ -10,6 +10,7 @@ import {
   FilePlay,
   ChevronDown,
   ChevronRight,
+  Network,
 } from "lucide-react";
 
 import { usePyodideH5, type OutMsg } from "../contexts/PyodideH5Context";
@@ -981,6 +982,15 @@ _STATE_REG[state_id] = state
           >
             <ListTree size={16} />
             Study
+          </button>
+
+          <button
+            className="btn btn-outline-secondary d-flex align-items-center gap-2"
+            onClick={() => nav("/view")}
+            title="View"
+          >
+            <Network size={16} />
+            View
           </button>
 
           <button

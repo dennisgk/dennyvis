@@ -2,7 +2,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router";
 import Editor from "@monaco-editor/react";
-import type * as monaco from "monaco-editor";
 
 import { usePyodideH5, type AppTreeNode } from "../contexts/PyodideH5Context";
 import { AppTreeView, type TreeItem } from "../components/AppTreeView";
@@ -202,10 +201,8 @@ export function EditPage() {
   const [openFileId, setOpenFileId] = useState<string | null>(null);
 
   // Monaco editor refs (avoid remounting)
-  const monacoEditorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(
-    null,
-  );
-  const monacoApiRef = useRef<typeof monaco | null>(null);
+  const monacoEditorRef = useRef<any | null>(null);
+  const monacoApiRef = useRef<any | null>(null);
   const settingValueRef = useRef(false);
 
   // Current text (always in-memory; editor writes here)
