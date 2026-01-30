@@ -16,6 +16,9 @@ import {
   Tab,
   DropdownButton,
   ButtonGroup,
+  Container,
+  Row,
+  Col,
 } from "react-bootstrap";
 import { Canvas, useFrame } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
@@ -53,6 +56,9 @@ type Scope = {
   Tab: typeof Tab;
   DropdownButton: typeof DropdownButton;
   ButtonGroup: typeof ButtonGroup;
+  Container: typeof Container;
+  Row: typeof Row;
+  Col: typeof Col;
 
   Canvas: typeof Canvas;
   OrbitControls: typeof OrbitControls;
@@ -91,6 +97,9 @@ export function evaluateToComponent(
     const Tab = scope.Tab;
     const DropdownButton = scope.DropdownButton;
     const ButtonGroup = scope.ButtonGroup;
+    const Container = scope.Container;
+    const Col = scope.Col;
+    const Row = scope.Row;
 
     const Canvas = scope.Canvas;
     const OrbitControls = scope.OrbitControls;
@@ -124,6 +133,9 @@ export function evaluateToComponent(
     Tab: Tab,
     DropdownButton: DropdownButton,
     ButtonGroup: ButtonGroup,
+    Container: Container,
+    Row: Row,
+    Col: Col,
 
     Canvas: Canvas,
     OrbitControls: OrbitControls,
