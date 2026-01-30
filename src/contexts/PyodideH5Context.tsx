@@ -189,7 +189,7 @@ export function PyodideH5Provider({ children }: { children: React.ReactNode }) {
   const loadH5 = async (file: File): Promise<OutMsg<void>> => {
     try {
       const py = await ensurePy();
-      await py.loadPackage(["numpy", "h5py"]);
+      await py.loadPackage(["numpy", "h5py", "matplotlib"]);
 
       const bytes = new Uint8Array(await file.arrayBuffer());
       const path = `/work/${file.name}`;
