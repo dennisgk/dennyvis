@@ -595,9 +595,9 @@ for name, spec in schema.items():
 
 vfn = entry.get("validate")
 if callable(vfn):
-    res = await vfn(args)
+    res = await vfn(_h5, args)
     if not isinstance(res, dict) or "ok" not in res:
-        raise Exception("validate(args) must return {'ok': True} or {'ok': False, 'message': str}")
+        raise Exception("validate(h5, args) must return {'ok': True} or {'ok': False, 'message': str}")
     if not bool(res.get("ok")):
         msg = res.get("message", "Validation failed")
         raise Exception(str(msg))
@@ -629,7 +629,7 @@ message = lambda data: globalMessage(sid, state_id, data)
 fn = entry.get("onMessage") if entry else None
 res = None
 if callable(fn):
-    res = await fn(message, state, data)
+    res = await fn(_h5, message, state, data)
 
 res
 `;
@@ -659,7 +659,7 @@ fn = entry.get("onState")
 comp_str = None
 
 if callable(fn):
-    res = await fn(args)
+    res = await fn(_h5, args)
     if isinstance(res, tuple) and len(res) >= 1:
         state = res[0]
         if len(res) >= 2:
