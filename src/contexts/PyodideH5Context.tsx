@@ -81,6 +81,8 @@ async function getPyodide(): Promise<PyodideInterface> {
   if (!pyodidePromise) {
     pyodidePromise = loadPyodide({
       indexURL: "https://cdn.jsdelivr.net/pyodide/v0.29.2/full/",
+      stdout: (s) => console.log("[py]", s),
+      stderr: (s) => console.error("[py]", s),
     });
   }
   return pyodidePromise;
