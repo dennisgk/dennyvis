@@ -48,9 +48,6 @@ async function ensurePy(): Promise<PyodideInterface> {
             dict_converter: Object.fromEntries,
           });
         }
-        if (mres && typeof (mres as any).destroy === "function")
-          (mres as any).destroy();
-
         const reqId = (globalMessageReqId += 1);
         ctx.postMessage({
           type: "globalMessage",
