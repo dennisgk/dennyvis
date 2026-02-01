@@ -351,12 +351,12 @@ write_node("/app", data)
 init_path = "/app/__init__.py"
 if not os.path.exists(init_path):
     with open(init_path, "w", encoding="utf-8") as f:
-        f.write("")
+        f.write("from . import main")
 
 main_path = "/app/main.py"
 if not os.path.exists(main_path):
     with open(main_path, "w", encoding="utf-8") as f:
-        f.write("def hierarchy():\\n    return {}\\n")
+        f.write("def hierarchy(h5):\\n    return {}\\n")
 `;
     const r = await run(py);
     if (!r.ok) throw new Error(r.error);

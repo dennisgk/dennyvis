@@ -15,6 +15,7 @@ import {
 
 import { usePyodideH5, type OutMsg } from "../contexts/PyodideH5Context";
 import { compileJsx, evaluateToComponent } from "../utils/JSXToJS";
+import { Spinner } from "react-bootstrap";
 
 type StudyArg =
   | { type: "string"; defaultValue: string }
@@ -464,7 +465,7 @@ if "/" not in sys.path:
 import app.main
 importlib.reload(app.main)
 
-raw = app.main.hierarchy()
+raw = app.main.hierarchy(_h5)
 
 try:
     _STUDY_REG
@@ -1073,7 +1074,9 @@ _STATE_REG[state_id] = state
               </div>
             ) : (
               <div style={{ overflow: "auto", height: "100%", padding: 12 }}>
-                {allStudies.length === 0 ? (
+                {hier === null ? (
+                  <Spinner />
+                ) : allStudies.length === 0 ? (
                   <div className="text-muted">No studies found.</div>
                 ) : (
                   <>

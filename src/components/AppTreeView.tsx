@@ -1,6 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Tree } from "react-arborist";
-import { ChevronDown, ChevronRight, FilePlus, FolderPlus } from "lucide-react";
+import {
+  ChevronDown,
+  ChevronRight,
+  FilePlus,
+  FolderPlus,
+  TrashIcon,
+} from "lucide-react";
 
 export type TreeItemKind = "dir" | "file";
 
@@ -179,6 +185,18 @@ export function AppTreeView({
         >
           <FilePlus size={16} />
         </button>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            /* IMPLEMENT HERE */
+          }}
+          className="btn btn-sm btn-outline-danger"
+          title="Delete"
+        >
+          <TrashIcon size={16} />
+        </button>
       </div>
 
       <div style={{ flex: 1, minHeight: 0 }}>
@@ -312,6 +330,16 @@ export function AppTreeView({
             }}
           >
             Add file
+          </button>
+          <button
+            className="dropdown-item"
+            type="button"
+            onClick={() => {
+              setCtxMenu({ open: false });
+              /* IMPLEMENT HERE */
+            }}
+          >
+            Delete
           </button>
         </div>
       )}

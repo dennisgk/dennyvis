@@ -11,7 +11,7 @@ type ResponseMessage =
   | { id: number; ok: true; data?: any }
   | { id: number; ok: false; error: string; stack?: string };
 
-const ctx = self as DedicatedWorkerGlobalScope;
+const ctx = self as any;
 
 let pyodidePromise: Promise<PyodideInterface> | null = null;
 let pyodide: PyodideInterface | null = null;
@@ -160,11 +160,11 @@ def _ensure_module_skeleton():
     init_path = "/app/__init__.py"
     if not os.path.exists(init_path):
         with open(init_path, "w", encoding="utf-8") as f:
-            f.write("")
+            f.write("from . import main")
     main_path = "/app/main.py"
     if not os.path.exists(main_path):
         with open(main_path, "w", encoding="utf-8") as f:
-            f.write("def hierarchy():\\n    return {}\\n")
+            f.write("def hierarchy(h5):\\n    return {}\\n")
 
 def _write_fs_group_to_app(fsgrp, base="/app"):
     # fsgrp is an h5py.Group; keys become file/dir names.
@@ -196,10 +196,6 @@ if fsgrp is None:
     _ensure_module_skeleton()
 else:
     os.makedirs("/app", exist_ok=True)
-    init_path = "/app/__init__.py"
-    if not os.path.exists(init_path):
-        with open(init_path, "w", encoding="utf-8") as f:
-            f.write("")
     _write_fs_group_to_app(fsgrp, "/app")
     _ensure_module_skeleton()
 `);
@@ -249,7 +245,7 @@ if "/" not in sys.path:
 import app.main
 importlib.reload(app.main)
 
-raw = app.main.hierarchy()
+raw = app.main.hierarchy(_h5)
 
 def _sanitize(node):
     if isinstance(node, dict) and "type" not in node:

@@ -70,7 +70,7 @@ const ViewPage = () => {
               <Spinner />
             ) : (
               <H5WasmBufferProvider
-                buffer={fileBuffer}
+                buffer={fileBuffer as any}
                 filename={fileName ?? ""}
               >
                 <App />
