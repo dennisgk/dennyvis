@@ -56,9 +56,10 @@ async function ensurePy(): Promise<PyodideInterface> {
           reqId,
           data: mdata,
         });
-        return await new Promise((resolve, reject) => {
+        const jsResult = await new Promise((resolve, reject) => {
           pendingGlobalMessages.set(reqId, { resolve, reject });
         });
+        return pyodide!.toPy(jsResult);
       },
     );
   }
