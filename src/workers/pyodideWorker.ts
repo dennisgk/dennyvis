@@ -15,8 +15,15 @@ const ctx = self as DedicatedWorkerGlobalScope;
 
 let pyodidePromise: Promise<PyodideInterface> | null = null;
 let pyodide: PyodideInterface | null = null;
+let globalMessageReqId = 0;
+const pendingGlobalMessages = new Map<
+  number,
+  { resolve: (data: any) => void; reject: (error: Err) => void }
+>();
 
-function toErr(e: unknown): { error: string; stack?: string } {
+type Err = { error: string; stack?: string };
+
+function toErr(e: unknown): Err {
   if (e instanceof Error) return { error: e.message, stack: e.stack };
   return { error: String(e) };
 }
@@ -34,7 +41,7 @@ async function ensurePy(): Promise<PyodideInterface> {
     pyodide.globals.set("THREE", THREE);
     pyodide.globals.set(
       "globalMessage",
-      (id: string, state_id: string, mres: any) => {
+      async (id: string, state_id: string, mres: any) => {
         let mdata: unknown = mres as unknown;
         if (mres && typeof (mres as any).toJs === "function") {
           mdata = (mres as any).toJs({
@@ -44,13 +51,17 @@ async function ensurePy(): Promise<PyodideInterface> {
         if (mres && typeof (mres as any).destroy === "function")
           (mres as any).destroy();
 
+        const reqId = (globalMessageReqId += 1);
         ctx.postMessage({
           type: "globalMessage",
           id,
           state_id,
+          reqId,
           data: mdata,
         });
-        return null;
+        return await new Promise((resolve, reject) => {
+          pendingGlobalMessages.set(reqId, { resolve, reject });
+        });
       },
     );
   }
@@ -360,6 +371,18 @@ ctx.addEventListener("message", async (event: MessageEvent<RequestMessage>) => {
   try {
     let data: any;
     switch (type) {
+      case "globalMessageResponse": {
+        const entry = pendingGlobalMessages.get(payload.reqId);
+        if (entry) {
+          pendingGlobalMessages.delete(payload.reqId);
+          if (payload.ok) {
+            entry.resolve(payload.data);
+          } else {
+            entry.reject({ error: payload.error, stack: payload.stack });
+          }
+        }
+        return;
+      }
       case "loadH5":
         await handleLoadH5(payload);
         data = undefined;

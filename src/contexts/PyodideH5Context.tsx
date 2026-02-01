@@ -114,12 +114,28 @@ export function PyodideH5Provider({ children }: { children: React.ReactNode }) {
       worker.onmessage = (event: MessageEvent<WorkerResponse | any>) => {
         const msg = event.data;
         if (msg?.type === "globalMessage") {
-          if (
-            msg.id in globalMessageHandlers.current &&
-            msg.state_id in globalMessageHandlers.current[msg.id]
-          ) {
-            globalMessageHandlers.current[msg.id][msg.state_id](msg.data);
-          }
+          const handler =
+            msg.id in globalMessageHandlers.current
+              ? globalMessageHandlers.current[msg.id][msg.state_id]
+              : undefined;
+          Promise.resolve()
+            .then(() => (handler ? handler(msg.data) : null))
+            .then((data) => {
+              worker.postMessage({
+                type: "globalMessageResponse",
+                payload: { reqId: msg.reqId, ok: true, data },
+              });
+            })
+            .catch((error: unknown) => {
+              const err =
+                error instanceof Error
+                  ? { error: error.message, stack: error.stack }
+                  : { error: String(error) };
+              worker.postMessage({
+                type: "globalMessageResponse",
+                payload: { reqId: msg.reqId, ok: false, ...err },
+              });
+            });
           return;
         }
         if (msg && typeof msg.id === "number") {
