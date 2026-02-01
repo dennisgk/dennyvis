@@ -61,6 +61,24 @@ function getNode(root: MemNode, relPath: string): MemNode | null {
   return cur;
 }
 
+function deleteNode(root: MemNode, relPath: string): boolean {
+  if (root.kind !== "dir") return false;
+  const parts = relPath.split("/").filter(Boolean);
+  if (parts.length === 0) return false;
+  let cur: MemNode = root;
+  for (const part of parts.slice(0, -1)) {
+    if (cur.kind !== "dir") return false;
+    const nxt = cur.children[part];
+    if (!nxt || nxt.kind !== "dir") return false;
+    cur = nxt;
+  }
+  if (cur.kind !== "dir") return false;
+  const name = parts[parts.length - 1];
+  if (!cur.children[name]) return false;
+  delete cur.children[name];
+  return true;
+}
+
 function memToTreeItems(mem: MemNode, base: string): TreeItem[] {
   if (mem.kind !== "dir") return [];
   const out: TreeItem[] = [];
@@ -213,6 +231,7 @@ export function EditPage() {
   const [modalMode, setModalMode] = useState<ModalMode>("add-file");
   const [modalParentDir, setModalParentDir] = useState("/app");
   const [modalName, setModalName] = useState("");
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   function refreshTreeFromRef() {
     const items = memToTreeItems(appStateRef.current, "/app");
@@ -283,6 +302,47 @@ export function EditPage() {
     const relNew = relParent ? `${relParent}/${name}` : name;
     setFile(appStateRef.current, relNew, "");
     refreshTreeFromRef();
+  }
+
+  function deleteByFullPath(fullPath: string) {
+    if (!fullPath || fullPath === "/app") return;
+    flushEditorToMemory();
+    const rel = relFromApp(fullPath);
+    if (!rel) return;
+    const removed = deleteNode(appStateRef.current, rel);
+    if (!removed) return;
+
+    const normalized = normPath(fullPath);
+    const isOpenDeleted =
+      openFileId &&
+      (normPath(openFileId) === normalized ||
+        normPath(openFileId).startsWith(`${normalized}/`));
+
+    if (isOpenDeleted) {
+      setOpenFileId(null);
+      editorDirtyRef.current = "";
+      const ed = monacoEditorRef.current;
+      if (ed) {
+        settingValueRef.current = true;
+        ed.setValue("");
+        settingValueRef.current = false;
+      }
+    }
+
+    if (
+      selectedId &&
+      (normPath(selectedId) === normalized ||
+        normPath(selectedId).startsWith(`${normalized}/`))
+    ) {
+      setSelectedId(null);
+    }
+
+    refreshTreeFromRef();
+  }
+
+  function requestDelete(fullPath: string) {
+    if (!fullPath || fullPath === "/app") return;
+    setConfirmDeleteId(fullPath);
   }
 
   // Persist whatever is currently in the editor into the in-memory tree
@@ -505,6 +565,7 @@ if not os.path.exists(main_path):
                 showAddModal("add-folder", parentDirId)
               }
               onAddFile={(parentDirId) => showAddModal("add-file", parentDirId)}
+              onDelete={(targetId) => requestDelete(targetId)}
             />
           </div>
         </div>
@@ -590,6 +651,21 @@ if not os.path.exists(main_path):
         <div className="form-text">
           No slashes. <code>__pycache__</code> is ignored.
         </div>
+      </Modal>
+      <Modal
+        show={!!confirmDeleteId}
+        title="Delete item"
+        onClose={() => setConfirmDeleteId(null)}
+        onOk={() => {
+          if (confirmDeleteId) deleteByFullPath(confirmDeleteId);
+          setConfirmDeleteId(null);
+        }}
+        okText="Delete"
+      >
+        <p className="mb-0">
+          Are you sure you want to delete{" "}
+          <code>{confirmDeleteId ?? ""}</code>?
+        </p>
       </Modal>
     </div>
   );

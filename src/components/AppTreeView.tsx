@@ -36,6 +36,7 @@ export type AppTreeViewProps = {
 
   onAddFile: (parentDirId: string) => void;
   onAddFolder: (parentDirId: string) => void;
+  onDelete: (targetId: string) => void;
 
   height?: number;
 };
@@ -57,6 +58,7 @@ export function AppTreeView({
   onSelect,
   onAddFile,
   onAddFolder,
+  onDelete,
   height = 700,
 }: AppTreeViewProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -190,10 +192,11 @@ export function AppTreeView({
           onClick={(e) => {
             e.preventDefault();
             e.stopPropagation();
-            /* IMPLEMENT HERE */
+            if (selectedId) onDelete(selectedId);
           }}
           className="btn btn-sm btn-outline-danger"
           title="Delete"
+          disabled={!selectedId}
         >
           <TrashIcon size={16} />
         </button>
@@ -335,9 +338,11 @@ export function AppTreeView({
             className="dropdown-item"
             type="button"
             onClick={() => {
+              if (!ctxMenu.targetId) return;
               setCtxMenu({ open: false });
-              /* IMPLEMENT HERE */
+              onDelete(ctxMenu.targetId);
             }}
+            disabled={!ctxMenu.targetId}
           >
             Delete
           </button>
