@@ -68,7 +68,7 @@ function deleteNode(root: MemNode, relPath: string): boolean {
   let cur: MemNode = root;
   for (const part of parts.slice(0, -1)) {
     if (cur.kind !== "dir") return false;
-    const nxt = cur.children[part];
+    const nxt: any = cur.children[part];
     if (!nxt || nxt.kind !== "dir") return false;
     cur = nxt;
   }
@@ -663,8 +663,7 @@ if not os.path.exists(main_path):
         okText="Delete"
       >
         <p className="mb-0">
-          Are you sure you want to delete{" "}
-          <code>{confirmDeleteId ?? ""}</code>?
+          Are you sure you want to delete <code>{confirmDeleteId ?? ""}</code>?
         </p>
       </Modal>
     </div>
