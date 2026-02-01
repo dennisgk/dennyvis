@@ -5,29 +5,36 @@ import "@h5web/app/styles.css";
 import { usePyodideH5 } from "../contexts/PyodideH5Context";
 import { ArrowLeft } from "lucide-react";
 import { useNavigate } from "react-router";
-import { useEffect, useMemo } from "react";
+import { useEffect, useState } from "react";
 import { Spinner } from "react-bootstrap";
 
 const ViewPage = () => {
   const nav = useNavigate();
 
-  const { hasH5, fileName, pyodide } = usePyodideH5();
-
-  const fileBuffer = useMemo<any>(
-    () =>
-      pyodide === null
-        ? null
-        : hasH5 === false
-          ? null
-          : pyodide?.FS.readFile(`/work/${fileName}`),
-    [pyodide, hasH5],
-  );
+  const { hasH5, fileName, fsReadBinary } = usePyodideH5();
+  const [fileBuffer, setFileBuffer] = useState<Uint8Array | null>(null);
 
   useEffect(() => {
     if (!hasH5) {
       nav("/");
     }
   }, [hasH5]);
+
+  useEffect(() => {
+    let alive = true;
+    if (!hasH5 || !fileName) {
+      setFileBuffer(null);
+      return;
+    }
+    (async () => {
+      const res = await fsReadBinary(`/work/${fileName}`);
+      if (!alive) return;
+      setFileBuffer(res.ok ? res.data : null);
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [hasH5, fileName, fsReadBinary]);
 
   return (
     <div className="container-fluid py-3" style={{ height: "100vh" }}>

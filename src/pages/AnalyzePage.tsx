@@ -625,7 +625,8 @@ data = req.get("data", {}) or {}
 
 entry = _STUDY_REG.get(sid)
 state = _STATE_REG.get(state_id)
-message = lambda data: globalMessage(sid, state_id, data)
+async def message(data):
+    return await globalMessage(sid, state_id, data)
 
 fn = entry.get("onMessage") if entry else None
 res = None
