@@ -122,7 +122,7 @@ function buildFsTree(FS: any, root: string) {
 
 async function handleLoadH5(payload: { name: string; bytes: Uint8Array }) {
   const py = await ensurePy();
-  await py.loadPackage(["numpy", "h5py", "matplotlib"]);
+  await py.loadPackage(["numpy", "h5py", "matplotlib", "scipy", "micropip"]);
 
   const path = `/work/${payload.name}`;
   py.FS.mkdirTree("/work");
