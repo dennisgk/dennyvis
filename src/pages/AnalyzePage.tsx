@@ -465,7 +465,7 @@ if "/" not in sys.path:
 import app.main
 importlib.reload(app.main)
 
-raw = app.main.hierarchy(_h5)
+raw = await app.main.hierarchy(_h5)
 
 try:
     _STUDY_REG
@@ -615,6 +615,7 @@ args
     studyId: string,
     stateId: string,
     data: any,
+    transfers?: Array<Transferable> | undefined,
   ): Promise<OutMsg<any>> {
     const curVarName = makePyVarName();
 
@@ -637,7 +638,11 @@ if callable(fn):
 res
 `;
 
-    return await run<any>(code, { [curVarName]: { studyId, stateId, data } });
+    return await run<any>(
+      code,
+      { [curVarName]: { studyId, stateId, data } },
+      transfers,
+    );
   }
 
   async function pyStart(
@@ -1053,11 +1058,15 @@ _STATE_REG[state_id] = state
                   <></>
                 ) : (
                   <StudyComp
-                    message={async (data: any) => {
+                    message={async (
+                      data: any,
+                      transfers?: Array<Transferable> | undefined,
+                    ) => {
                       const msgRet = await pyMessage(
                         runningStudyId,
                         runningStateId,
                         data,
+                        transfers,
                       );
                       if (!msgRet.ok) {
                         throw new Error(

@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useRef, useMemo } from "react";
 import * as Babel from "@babel/standalone";
 
+import { GeneralOffscreenCanvas } from "../components/GeneralOffscreenCanvas";
 import {
   Button,
   Card,
@@ -59,6 +60,7 @@ type Scope = {
   Container: typeof Container;
   Row: typeof Row;
   Col: typeof Col;
+  GeneralOffscreenCanvas: typeof GeneralOffscreenCanvas;
 
   Canvas: typeof Canvas;
   OrbitControls: typeof OrbitControls;
@@ -100,6 +102,7 @@ export function evaluateToComponent(
     const Container = scope.Container;
     const Col = scope.Col;
     const Row = scope.Row;
+    const GeneralOffscreenCanvas = scope.GeneralOffscreenCanvas;
 
     const Canvas = scope.Canvas;
     const OrbitControls = scope.OrbitControls;
@@ -136,6 +139,7 @@ export function evaluateToComponent(
     Container: Container,
     Row: Row,
     Col: Col,
+    GeneralOffscreenCanvas: GeneralOffscreenCanvas,
 
     Canvas: Canvas,
     OrbitControls: OrbitControls,

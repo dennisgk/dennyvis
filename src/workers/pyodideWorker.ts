@@ -137,6 +137,417 @@ except Exception:
     pass
 _h5 = h5py.File(H5_PATH, "r")
 `);
+
+    await handleRun({
+      code: `
+import sys, types
+import importlib.util
+
+_name = "backend_offscreen_gui"
+
+mod = types.ModuleType(_name)
+mod.__file__ = f"<pyodide:{_name}>"
+mod.__package__ = _name.rpartition(".")[0]
+mod.__spec__ = importlib.util.spec_from_loader(_name, loader=None)
+
+sys.modules[_name] = mod
+exec(_BACKEND_OFFSCREEN_GUI_SOURCE, mod.__dict__)      
+`,
+      tmpGlobs: {
+        "_BACKEND_OFFSCREEN_GUI_SOURCE": `
+# py/backend_offscreen_gui.py
+
+from __future__ import annotations
+from dataclasses import dataclass
+import matplotlib as mpl
+from matplotlib import cbook
+from matplotlib.backend_bases import (
+    _Backend,
+    FigureManagerBase,
+    NavigationToolbar2,
+    ResizeEvent,
+    CloseEvent,
+)
+from matplotlib.backends.backend_agg import FigureCanvasAgg
+
+from js import ImageData, Uint8Array, Uint8ClampedArray
+
+
+@dataclass
+class OffscreenInfo:
+    width_px: int
+    height_px: int
+    dpr: float
+
+
+class FigureCanvasOffscreenGUI(FigureCanvasAgg):
+    """
+    GUI-like Agg canvas:
+      - draw() renders Agg then blits to OffscreenCanvas
+      - draw_idle() marks dirty, tick() flushes it
+      - drawRectangle() overlays Qt-like dashed rubberband box
+      - hover tooltip overlay (Qt-status-like message) on motion events
+    """
+    required_interactive_framework = "offscreen"
+    manager_class = mpl._api.classproperty(lambda cls: FigureManagerOffscreenGUI)
+
+    def __init__(self, figure=None):
+        super().__init__(figure=figure)
+        self.mlcanvas = None
+        self._ctx2d = None
+        self._info = OffscreenInfo(1, 1, 1.0)
+
+        self._draw_pending = False
+        self._is_drawing = False
+
+        # Last rendered image (so we can draw overlays without re-rendering Agg)
+        self._last_img = None  # JS ImageData
+        self._rubberband_rect = None  # (x, y, w, h) in CANVAS coords (origin top-left)
+
+        # Toolbar/status text storage
+        self._status_message = ""
+
+        # -------------------------
+        # Hover tooltip overlay state
+        # -------------------------
+        self._hover_text: str | None = None
+        self._hover_xy: tuple[int, int] | None = None  # CANVAS coords (origin top-left)
+        self._hover_enabled: bool = True
+        self._hover_max_len: int = 140  # avoid huge strings
+
+    def set_offscreen_canvas(self, mlcanvas, width_px: int, height_px: int, dpr: float):
+        self.mlcanvas = mlcanvas
+        self._ctx2d = mlcanvas.getContext("2d", {"alpha": True, "desynchronized": True})
+        self._info = OffscreenInfo(int(width_px), int(height_px), float(dpr))
+
+        self.mlcanvas.width = self._info.width_px
+        self.mlcanvas.height = self._info.height_px
+
+        dpi = self.figure.dpi
+        self.figure.set_size_inches(self._info.width_px / dpi, self._info.height_px / dpi, forward=False)
+
+        ResizeEvent("resize_event", self)._process()
+        self.draw_idle()
+
+    def draw(self):
+        if self._is_drawing:
+            return
+        with cbook._setattr_cm(self, _is_drawing=True):
+            super().draw()
+        self._blit_full()
+
+    def draw_idle(self):
+        self._draw_pending = True
+
+    def _maybe_draw(self):
+        if self._draw_pending:
+            self._draw_pending = False
+            self.draw()
+        else:
+            # Even if no redraw, overlays may have changed
+            if self._rubberband_rect is not None or self._hover_text is not None:
+                self._redraw_from_last_with_overlay()
+
+    def tick(self):
+        self._maybe_draw()
+
+    # -------------------------
+    # Rubberband overlay API
+    # -------------------------
+
+    def drawRectangle(self, rect):
+        """
+        Qt backend calls this from toolbar rubberband logic.
+        rect is either None or [x, y, w, h] in CANVAS coords (origin top-left).
+        """
+        self._rubberband_rect = tuple(rect) if rect is not None else None
+        self._redraw_from_last_with_overlay()
+
+    # -------------------------
+    # Hover tooltip overlay API
+    # -------------------------
+
+    def set_hover(self, x_canvas: int, y_canvas: int, text: str | None):
+        """
+        Store hover tooltip state and redraw overlays.
+        x_canvas/y_canvas are CANVAS coords (origin top-left).
+        """
+        if not self._hover_enabled:
+            return
+
+        if text is not None:
+            text = text.strip()
+            if not text:
+                text = None
+            elif len(text) > self._hover_max_len:
+                text = text[: self._hover_max_len - 1] + "…"
+
+        new_xy = (int(x_canvas), int(y_canvas)) if text is not None else None
+
+        # Avoid repaint churn if nothing changed
+        if text == self._hover_text and new_xy == self._hover_xy:
+            return
+
+        self._hover_text = text
+        self._hover_xy = new_xy
+        self._redraw_from_last_with_overlay()
+
+    def clear_hover(self):
+        if self._hover_text is None and self._hover_xy is None:
+            return
+        self._hover_text = None
+        self._hover_xy = None
+        self._redraw_from_last_with_overlay()
+
+    # -------------------------
+    # Overlay composition
+    # -------------------------
+
+    def _redraw_from_last_with_overlay(self):
+        if self._ctx2d is None or self._last_img is None:
+            return
+        # restore last rendered pixels
+        self._ctx2d.putImageData(self._last_img, 0, 0)
+
+        # overlay rubberband if active
+        if self._rubberband_rect is not None:
+            self._draw_rubberband_overlay(*self._rubberband_rect)
+
+        # overlay hover tooltip if active
+        if self._hover_text is not None and self._hover_xy is not None:
+            self._draw_hover_tooltip(self._hover_xy[0], self._hover_xy[1], self._hover_text)
+
+    def _draw_rubberband_overlay(self, x, y, w, h):
+        ctx = self._ctx2d
+        if ctx is None:
+            return
+
+        # Draw two dashed rectangles (black then white offset) like Qt
+        ctx.save()
+        try:
+            ctx.lineWidth = 1
+            ctx.setLineDash([3, 3])
+
+            ctx.lineDashOffset = 0
+            ctx.strokeStyle = "black"
+            ctx.strokeRect(x + 0.5, y + 0.5, w, h)
+
+            ctx.lineDashOffset = 3
+            ctx.strokeStyle = "white"
+            ctx.strokeRect(x + 0.5, y + 0.5, w, h)
+        finally:
+            ctx.restore()
+
+    def _draw_hover_tooltip(self, x: int, y: int, text: str):
+        """
+        Draw a small tooltip near the cursor, Qt-like (dark translucent box + light text).
+        Coordinates are CANVAS coords (origin top-left).
+        """
+        ctx = self._ctx2d
+        if ctx is None:
+            return
+
+        # Placement: slightly offset from cursor, clamped to canvas bounds.
+        pad = 6
+        offset_x = 12
+        offset_y = 18
+
+        # Basic font; keep it readable and consistent.
+        font_px = 12
+        max_width = int(self._info.width_px * 0.75)
+
+        ctx.save()
+        try:
+            ctx.font = f"{font_px}px sans-serif"
+            ctx.textBaseline = "top"
+
+            # crude wrapping: split by spaces to fit max_width
+            words = text.split()
+            lines = []
+            cur = ""
+            for w in words:
+                test = (cur + " " + w).strip()
+                if ctx.measureText(test).width <= max_width or not cur:
+                    cur = test
+                else:
+                    lines.append(cur)
+                    cur = w
+            if cur:
+                lines.append(cur)
+
+            # measure box
+            line_h = font_px + 3
+            text_w = 0
+            for ln in lines:
+                mw = ctx.measureText(ln).width
+                if mw > text_w:
+                    text_w = mw
+            box_w = int(text_w + pad * 2)
+            box_h = int(line_h * len(lines) + pad * 2)
+
+            bx = x + offset_x
+            by = y + offset_y
+
+            # clamp to canvas bounds (keep tooltip fully visible)
+            if bx + box_w > self._info.width_px:
+                bx = max(0, self._info.width_px - box_w - 1)
+            if by + box_h > self._info.height_px:
+                by = max(0, self._info.height_px - box_h - 1)
+
+            # background
+            ctx.globalAlpha = 0.85
+            ctx.fillStyle = "black"
+            # rounded rect fallback: just rect (works everywhere)
+            ctx.fillRect(bx, by, box_w, box_h)
+
+            # border (subtle)
+            ctx.globalAlpha = 1.0
+            ctx.lineWidth = 1
+            ctx.strokeStyle = "rgba(255,255,255,0.35)"
+            ctx.strokeRect(bx + 0.5, by + 0.5, box_w - 1, box_h - 1)
+
+            # text
+            ctx.fillStyle = "white"
+            tx = bx + pad
+            ty = by + pad
+            for ln in lines:
+                ctx.fillText(ln, tx, ty)
+                ty += line_h
+        finally:
+            ctx.restore()
+
+    # -------------------------
+    # Agg -> OffscreenCanvas blit
+    # -------------------------
+
+    def _blit_full(self):
+        if self.mlcanvas is None or self._ctx2d is None or ImageData is None:
+            return
+
+        w, h = self.get_width_height()
+
+        rgba = self.buffer_rgba()
+        try:
+            flat = rgba.cast("B")
+        except Exception:
+            flat = rgba.tobytes()
+
+        u8 = Uint8Array.new(flat)
+        clamped = Uint8ClampedArray.new(u8.buffer, u8.byteOffset, u8.byteLength)
+
+        img = ImageData.new(clamped, w, h)
+        self._last_img = img  # store last full frame
+
+        self._ctx2d.putImageData(img, 0, 0)
+
+        # Re-apply overlays
+        if self._rubberband_rect is not None:
+            self._draw_rubberband_overlay(*self._rubberband_rect)
+        if self._hover_text is not None and self._hover_xy is not None:
+            self._draw_hover_tooltip(self._hover_xy[0], self._hover_xy[1], self._hover_text)
+
+
+class NavigationToolbar2Offscreen(NavigationToolbar2):
+    """
+    Implements the missing Qt toolbar behaviors:
+      - draw_rubberband / remove_rubberband
+      - set_message (status/header text)
+      - (we also use its message formatting for hover tooltip)
+    """
+    toolitems = NavigationToolbar2.toolitems
+
+    def set_message(self, s):
+        # Store on canvas for JS header to read (poll via tick response if you want)
+        if hasattr(self.canvas, "_status_message"):
+            self.canvas._status_message = s
+
+    def draw_rubberband(self, event, x0, y0, x1, y1):
+        # Matplotlib passes coords in MPL pixel coords (origin bottom-left).
+        # Canvas overlay wants origin top-left.
+        height = self.canvas.figure.bbox.height
+        y0c = height - y0
+        y1c = height - y1
+
+        left = min(x0, x1)
+        right = max(x0, x1)
+        top = min(y0c, y1c)
+        bottom = max(y0c, y1c)
+
+        rect = [int(left), int(top), int(right - left), int(bottom - top)]
+        self.canvas.drawRectangle(rect)
+
+    def remove_rubberband(self):
+        self.canvas.drawRectangle(None)
+
+
+class FigureManagerOffscreenGUI(FigureManagerBase):
+    _toolbar2_class = NavigationToolbar2Offscreen
+
+    def __init__(self, canvas, num):
+        super().__init__(canvas, num)
+        self.toolbar = self._toolbar2_class(canvas) if self._toolbar2_class else None
+
+        # -------------------------
+        # Hook motion events to paint a Qt-like hover tooltip on the canvas.
+        # -------------------------
+        canvas.mpl_connect("motion_notify_event", self._on_motion)
+        canvas.mpl_connect("figure_leave_event", self._on_leave)
+
+    def _on_motion(self, event):
+        """
+        event.x / event.y are pixel coords with origin bottom-left (mpl coords).
+        We convert to CANVAS coords (origin top-left) and draw a tooltip.
+        """
+        if event is None or event.x is None or event.y is None:
+            return
+
+        # Generate the same message that Qt normally shows in its status bar.
+        msg = None
+        if self.toolbar is not None:
+            try:
+                msg = self.toolbar._mouse_event_to_message(event)
+            except Exception:
+                msg = None
+
+            # also keep the "status bar" string in sync for your JS header if desired
+            if msg is not None:
+                try:
+                    self.toolbar.set_message(msg)
+                except Exception:
+                    pass
+
+        # Convert to CANVAS coords (origin top-left)
+        height = int(self.canvas.figure.bbox.height)
+        x_canvas = int(event.x)
+        y_canvas = int(height - event.y)
+
+        # If nothing meaningful, clear tooltip
+        if msg is None or not str(msg).strip():
+            self.canvas.clear_hover()
+            return
+
+        self.canvas.set_hover(x_canvas, y_canvas, str(msg))
+
+    def _on_leave(self, event):
+        # Clear tooltip when cursor exits the figure.
+        self.canvas.clear_hover()
+
+    def show(self):
+        pass
+
+    def destroy(self, *args):
+        CloseEvent("close_event", self.canvas)._process()
+        super().destroy()
+
+
+@_Backend.export
+class _BackendOffscreenGUI(_Backend):
+    FigureCanvas = FigureCanvasOffscreenGUI
+    FigureManager = FigureManagerOffscreenGUI
+    mainloop = None
+`
+      }
+    });
 }
 
 async function handleEnsureAppFromFsGroup() {
@@ -164,7 +575,7 @@ def _ensure_module_skeleton():
     main_path = "/app/main.py"
     if not os.path.exists(main_path):
         with open(main_path, "w", encoding="utf-8") as f:
-            f.write("def hierarchy(h5):\\n    return {}\\n")
+            f.write("async def hierarchy(h5):\\n    return {}\\n")
 
 def _write_fs_group_to_app(fsgrp, base="/app"):
     # fsgrp is an h5py.Group; keys become file/dir names.
@@ -245,7 +656,7 @@ if "/" not in sys.path:
 import app.main
 importlib.reload(app.main)
 
-raw = app.main.hierarchy(_h5)
+raw = await app.main.hierarchy(_h5)
 
 def _sanitize(node):
     if isinstance(node, dict) and "type" not in node:

@@ -44,6 +44,7 @@ type Ctx = {
   run<T = unknown>(
     code: string,
     tmpGlobs?: Record<string, any> | undefined,
+    transfers?: Array<Transferable> | undefined,
   ): Promise<OutMsg<T>>;
 
   // Build hierarchy from /app/main.py -> app.main.hierarchy()
@@ -171,11 +172,9 @@ export function PyodideH5Provider({ children }: { children: React.ReactNode }) {
   const loadH5 = async (file: File): Promise<OutMsg<void>> => {
     try {
       const bytes = new Uint8Array(await file.arrayBuffer());
-      const res = await callWorker<void>(
-        "loadH5",
-        { name: file.name, bytes },
-        [bytes.buffer],
-      );
+      const res = await callWorker<void>("loadH5", { name: file.name, bytes }, [
+        bytes.buffer,
+      ]);
       if (!res.ok) throw new Error(res.error);
 
       setFileName(file.name);
@@ -203,9 +202,10 @@ export function PyodideH5Provider({ children }: { children: React.ReactNode }) {
   const run = async <T,>(
     code: string,
     tmpGlobs?: Record<string, any> | undefined,
+    transfers?: Array<Transferable> | undefined,
   ): Promise<OutMsg<T>> => {
     try {
-      return await callWorker<T>("run", { code, tmpGlobs });
+      return await callWorker<T>("run", { code, tmpGlobs }, transfers);
     } catch (e) {
       return toErr(e);
     }
@@ -236,9 +236,7 @@ export function PyodideH5Provider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const fsReadBinary = async (
-    path: string,
-  ): Promise<OutMsg<Uint8Array>> => {
+  const fsReadBinary = async (path: string): Promise<OutMsg<Uint8Array>> => {
     try {
       return await callWorker<Uint8Array>("fsReadBinary", { path });
     } catch (e) {

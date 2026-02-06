@@ -416,7 +416,7 @@ if not os.path.exists(init_path):
 main_path = "/app/main.py"
 if not os.path.exists(main_path):
     with open(main_path, "w", encoding="utf-8") as f:
-        f.write("def hierarchy(h5):\\n    return {}\\n")
+        f.write("async def hierarchy(h5):\\n    return {}\\n")
 `;
     const r = await run(py);
     if (!r.ok) throw new Error(r.error);
