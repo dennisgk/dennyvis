@@ -699,6 +699,11 @@ _STATE_REG[state_id] = state
 
       if (!init.ok) {
         console.error(init.error + "\n\n" + (init.stack ?? ""));
+        if (confirm("Critical error. Do you want to return to edit page?")) {
+          nav("/edit", { replace: true });
+          return;
+        }
+
         nav("/", { replace: true });
         return;
       }
