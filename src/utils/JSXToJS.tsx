@@ -20,6 +20,7 @@ import {
   Container,
   Row,
   Col,
+  Form,
 } from "react-bootstrap";
 import { Canvas, useFrame } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
@@ -61,6 +62,7 @@ type Scope = {
   Row: typeof Row;
   Col: typeof Col;
   GeneralOffscreenCanvas: typeof GeneralOffscreenCanvas;
+  Form: typeof Form;
 
   Canvas: typeof Canvas;
   OrbitControls: typeof OrbitControls;
@@ -103,6 +105,7 @@ export function evaluateToComponent(
     const Col = scope.Col;
     const Row = scope.Row;
     const GeneralOffscreenCanvas = scope.GeneralOffscreenCanvas;
+    const Form = scope.Form;
 
     const Canvas = scope.Canvas;
     const OrbitControls = scope.OrbitControls;
@@ -140,6 +143,7 @@ export function evaluateToComponent(
     Row: Row,
     Col: Col,
     GeneralOffscreenCanvas: GeneralOffscreenCanvas,
+    Form: Form,
 
     Canvas: Canvas,
     OrbitControls: OrbitControls,
