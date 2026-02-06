@@ -41,7 +41,10 @@ export type GeneralEvent =
   | { type: "keydown"; payload: GeneralKeyPayload }
   | { type: "keyup"; payload: GeneralKeyPayload };
 
-export type RegisterCanvasFn = (offscreen: OffscreenCanvas) => Promise<void>;
+export type RegisterCanvasFn = (
+  offscreen: OffscreenCanvas,
+  elem: HTMLCanvasElement,
+) => Promise<void>;
 export type TickCanvasFn = (events: GeneralEvent[]) => Promise<void>;
 export type UnregisterCanvasFn = () => Promise<void>;
 
@@ -123,7 +126,7 @@ export function GeneralOffscreenCanvas(props: GeneralOffscreenCanvasProps) {
     const offscreen = canvas.transferControlToOffscreen();
 
     (async () => {
-      await fnsRef.current.registerCanvas(offscreen);
+      await fnsRef.current.registerCanvas(offscreen, canvas);
     })().catch(console.error);
 
     const hasTick = typeof fnsRef.current.tickCanvas === "function";
